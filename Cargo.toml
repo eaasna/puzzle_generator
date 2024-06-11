@@ -1,4 +1,5 @@
 [package]
+authors = ["evelina"]
 name = "puzzle"
 version = "0.1.0"
 edition = "2021"
@@ -7,3 +8,7 @@ edition = "2021"
 
 [dependencies]
 markov = "1.1.0"
+find_folder = "0.3.0"
+piston = "0.53.0"
+piston_window = "0.120.0"
+tiled = "0.8.1"
