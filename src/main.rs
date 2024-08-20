@@ -1,6 +1,6 @@
-extern crate piston_window;
+mod miniquad;
 
-use piston_window::*;
+pub use crate::miniquad::draw;
 
 fn main() {
     use markov::Chain;
@@ -21,33 +21,14 @@ fn main() {
     let tile_sides = 4;
 
     // generate sequences
-    let mut gen = chain.iter();
-    let mut n = 0;
-    while n < tile_count{
-        
-        let seq = unsafe{(gen.next()).unwrap_unchecked()};
-        
-        if seq.len() >= tile_sides {
-            
-            let mut s = 0;
-            while s < tile_sides {
-                print!("{}", seq[s]);
-                s += 1;
-            }
-            println!("");
-            n += 1;
-        }
+    let gen = chain.iter_for(tile_count);
+    let mut n = 1;
+    for tile in gen {
+        print!("Tile {n}: ");
+        print!("{:?}", &tile[0..tile_sides]);
+        println!("\n");
+        n += 1;
     }
 
-    let mut window: PistonWindow =
-        WindowSettings::new("Hello Piston!", [640, 480])
-        .exit_on_esc(true).build().unwrap();
-    while let Some(e) = window.next() {
-        window.draw_2d(&e, |c, g, _device| {
-            clear([1.0; 4], g);
-            rectangle([1.0, 0.0, 0.0, 1.0], // red
-                      [0.0, 0.0, 100.0, 100.0],
-                      c.transform, g);
-        });
-    }
+    draw::draw_window();
 }
