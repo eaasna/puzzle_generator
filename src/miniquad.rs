@@ -2,6 +2,8 @@ pub mod draw{
 
 pub use miniquad::*;
 
+const N: usize = 5;
+
 #[repr(C)]
 struct Vertex {
     pos: [f32; 2],
@@ -14,23 +16,47 @@ struct Stage {
     ctx: Box<dyn RenderingBackend>,
 }
 
+
 impl Stage {
     pub fn new() -> Stage {
         let mut ctx: Box<dyn RenderingBackend> = window::new_rendering_backend();
 
         #[rustfmt::skip]
-        let vertices: [Vertex; 3] = [
-            Vertex { pos : [ -0.5, -0.5 ], color: [1., 0., 0., 1.] },
-            Vertex { pos : [  0.5, -0.5 ], color: [0., 1., 0., 1.] },
-            Vertex { pos : [  0.0,  0.5 ], color: [0., 0., 1., 1.] },
-        ];
+        
+        let vertices: [Vertex; N*N] = core::array::from_fn(|i| Vertex { 
+                                                                            pos : [-1. + 2.*((i%N) as f32)/(N as f32 -1.),  // x
+                                                                                   -1. + 2.*((i/N) as f32)/(N as f32 -1.) ], // y
+                                                                                    color: [(i%2) as f32, 0., ((i%2) + 1) as f32, 0.] });
+
+        /*
+        for i in 0..N*N {
+            print!("Vertex {},{}\n", vertices[i].pos[0], vertices[i].pos[1]);
+        }
+        */
+
         let vertex_buffer = ctx.new_buffer(
             BufferType::VertexBuffer,
             BufferUsage::Immutable,
             BufferSource::slice(&vertices),
         );
 
-        let indices: [u16; 3] = [0, 1, 2];
+        let mut indices: [u16; 3*2*N*N] = [0; (3*2*N*N) as usize];
+
+        let mut add = 0;
+        let s: [usize; 6] = [0, 1, N, N, (N+1), 1];
+        for i in 0..3*(N+1)*(N+1) {
+
+            let ind = i;
+            if (i % 24 == 0) && (i != 0) {
+                add += 1;
+            }
+            indices[ind] = (s[ind % (N+1)] + ind/(3*2) + add) as u16;
+        }
+
+        for i in (0..(3*2*N*N-3)).step_by(3) {
+            print!("Index {},{},{}\n", indices[i], indices[i+1], indices[i+2]);
+        }
+
         let index_buffer = ctx.new_buffer(
             BufferType::IndexBuffer,
             BufferUsage::Immutable,
@@ -84,7 +110,7 @@ impl EventHandler for Stage {
 
         self.ctx.apply_pipeline(&self.pipeline);
         self.ctx.apply_bindings(&self.bindings);
-        self.ctx.draw(0, 3, 1);
+        self.ctx.draw(0, (3*2*N*N-2) as i32, 1);
         self.ctx.end_render_pass();
 
         self.ctx.commit_frame();
