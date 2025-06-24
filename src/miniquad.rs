@@ -3,6 +3,7 @@ pub mod draw{
 pub use miniquad::*;
 
 const N: usize = 5;
+const T: usize = (N-1)*(N-1)*2*3; // 2 triangles per square, 3 indices per triangle
 
 #[repr(C)]
 struct Vertex {
@@ -28,23 +29,22 @@ impl Stage {
                                                                                    -1. + 2.*((i/N) as f32)/(N as f32 -1.) ], // y
                                                                                     color: [(i%2) as f32, 0., ((i%2) + 1) as f32, 0.] });
 
-        /*
+        
         for i in 0..N*N {
             print!("Vertex {},{}\n", vertices[i].pos[0], vertices[i].pos[1]);
         }
-        */
-
+        
         let vertex_buffer = ctx.new_buffer(
             BufferType::VertexBuffer,
             BufferUsage::Immutable,
             BufferSource::slice(&vertices),
         );
 
-        let mut indices: [u16; 3*2*N*N] = [0; (3*2*N*N) as usize];
+        let mut indices: [u16; T] = [0; T];
 
         let mut add = 0;
         let s: [usize; 6] = [0, 1, N, N, (N+1), 1];
-        for i in 0..3*(N+1)*(N+1) {
+        for i in 0..T {
 
             let ind = i;
             if (i % 24 == 0) && (i != 0) {
@@ -53,7 +53,7 @@ impl Stage {
             indices[ind] = (s[ind % (N+1)] + ind/(3*2) + add) as u16;
         }
 
-        for i in (0..(3*2*N*N-3)).step_by(3) {
+        for i in (0..T).step_by(3) {
             print!("Index {},{},{}\n", indices[i], indices[i+1], indices[i+2]);
         }
 
@@ -110,7 +110,7 @@ impl EventHandler for Stage {
 
         self.ctx.apply_pipeline(&self.pipeline);
         self.ctx.apply_bindings(&self.bindings);
-        self.ctx.draw(0, (3*2*N*N-2) as i32, 1);
+        self.ctx.draw(0, T as i32, 1);
         self.ctx.end_render_pass();
 
         self.ctx.commit_frame();
