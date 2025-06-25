@@ -24,13 +24,23 @@ impl Stage {
 
         #[rustfmt::skip]
         
-        let vertices: [Vertex; N*N] = core::array::from_fn(|i| Vertex { 
-                                                                            pos : [-1. + 2.*((i%N) as f32)/(N as f32 -1.),  // x
-                                                                                   -1. + 2.*((i/N) as f32)/(N as f32 -1.) ], // y
-                                                                                    color: [(i%2) as f32, 0., ((i%2) + 1) as f32, 0.] });
+        let vertices: [Vertex; 2*N*N] = core::array::from_fn(|i| {
+            if i < N*N {
+                Vertex {
+                    pos : [-1. + 2.*((i%N) as f32)/(N as f32 -1.),  // x
+                           -1. + 2.*((i/N) as f32)/(N as f32 -1.) ], // y
+                    color: [0., 0., 1., 0.]
+                }
+            } else {
+            Vertex {
+                pos : [-1. + 2.*(((i-N*N)%N) as f32)/(N as f32 -1.),  // x
+                       -1. + 2.*(((i-N*N)/N) as f32)/(N as f32 -1.) ], // y
+                color: [1., 0., 0., 1.]
+            }
+        }
+        });
 
-        
-        for i in 0..N*N {
+        for i in 0..2*N*N {
             print!("Vertex {},{}\n", vertices[i].pos[0], vertices[i].pos[1]);
         }
         
@@ -40,24 +50,40 @@ impl Stage {
             BufferSource::slice(&vertices),
         );
 
-        let mut indices: [u16; T] = [0; T];
+        let mut indices: [u16; 2*T] = [0; 2*T];
 
         let mut add = 0;
-        let s: [usize; 6] = [0, 1, N, N, (N+1), 1];
+        let s: [usize; 3*2] = [0, 1, N, N, (N+1), 1];
         for i in 0..T {
-
-            let ind = i;
-            if (i % 24 == 0) && (i != 0) {
+            if (i % ((N-1)*3*2) == 0) && (i != 0) {
                 add += 1;
             }
-            indices[ind] = (s[ind % (N+1)] + ind/(3*2) + add) as u16;
+            indices[i] = (s[i % (N+1)] + i/(3*2) + add) as u16;
         }
 
-        for i in (0..T).step_by(3) {
+        add = 0;
+        for i in T..(T+1)+((T as f32)/2.0) as usize {
+            let ind = i - T + 1;
+            if ind % (N-1) > 2 {
+                add += 6;
+            }
+            if (ind % ((N-1)*3*2) == 0) && (ind != 0) {
+                add += 1;
+            }
+            indices[i] = (s[ind % (N+1)] + i/(3*2) + add) as u16;
+        }
+
+        for i in (0..T+1).step_by(3) {
             print!("Index {},{},{}\n", indices[i], indices[i+1], indices[i+2]);
         }
 
-        let index_buffer = ctx.new_buffer(
+        print!("RED\n");
+
+        for i in (T+1..T*2-2).step_by(3) {
+            print!("Index {},{},{}\n", indices[i], indices[i+1], indices[i+2]);
+        }
+
+        let index_buffer1 = ctx.new_buffer(
             BufferType::IndexBuffer,
             BufferUsage::Immutable,
             BufferSource::slice(&indices),
@@ -65,7 +91,7 @@ impl Stage {
 
         let bindings = Bindings {
             vertex_buffers: vec![vertex_buffer],
-            index_buffer: index_buffer,
+            index_buffer: index_buffer1,
             images: vec![],
         };
 
@@ -106,11 +132,23 @@ impl EventHandler for Stage {
     fn update(&mut self) {}
 
     fn draw(&mut self) {
+        let t = date::now();
         self.ctx.begin_default_pass(Default::default());
 
         self.ctx.apply_pipeline(&self.pipeline);
         self.ctx.apply_bindings(&self.bindings);
-        self.ctx.draw(0, T as i32, 1);
+
+        //for i in 0..(T as f32/6 as f32) as usize {
+        for i in 0..1 as usize {
+            let t = t + i as f64 * 0.3;
+
+            self.ctx
+                .apply_uniforms(UniformsSource::table(&shader::Uniforms {
+                    offset: (t.sin() as f32 * 0.5, (t * 3.).cos() as f32 * 0.5),
+                }));
+            self.ctx.draw(0, (T*2).try_into().unwrap(), 1);
+        }
+
         self.ctx.end_render_pass();
 
         self.ctx.commit_frame();
@@ -155,6 +193,11 @@ mod shader {
 
     using namespace metal;
 
+    struct Uniforms
+    {
+        float2 offset;
+    };
+
     struct Vertex
     {
         float2 in_pos   [[attribute(0)]];
@@ -177,6 +220,18 @@ mod shader {
         return out;
     }
 
+    vertex RasterizerData vertexShader(
+      Vertex v [[stage_in]], 
+      constant Uniforms& uniforms [[buffer(0)]])
+    {
+        RasterizerData out;
+
+        out.position = float4(v.in_pos.xy + uniforms.offset, 0.0, 1.0);
+        out.uv = v.in_uv;
+
+        return out;
+    }
+
     fragment float4 fragmentShader(RasterizerData in [[stage_in]])
     {
         return in.color;
@@ -185,8 +240,15 @@ mod shader {
     pub fn meta() -> ShaderMeta {
         ShaderMeta {
             images: vec![],
-            uniforms: UniformBlockLayout { uniforms: vec![] },
+            uniforms: UniformBlockLayout {
+                uniforms: vec![UniformDesc::new("offset", UniformType::Float2)],
+            },
         }
+    }
+
+    #[repr(C)]
+    pub struct Uniforms {
+        pub offset: (f32, f32),
     }
 }
 
